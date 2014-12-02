@@ -14,12 +14,18 @@ import javax.ws.rs.core.Response.ResponseBuilder;
 import com.amazonaws.util.json.JSONArray;
 import com.amazonaws.util.json.JSONException;
 import com.amazonaws.util.json.JSONObject;
+import com.sun.jersey.core.header.FormDataContentDisposition;
+import com.sun.jersey.multipart.FormDataParam;
 
 import java.awt.List;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.Collection;
 import java.util.HashMap;
+
+
+
+
 
 import result.*;
 import controller.*;
@@ -98,32 +104,7 @@ public class MyResource {
 	//		return status;
 	//	}
 
-	@POST
-	@Path("checkavailability")
-	@Produces(MediaType.APPLICATION_JSON)
-	@Consumes(MediaType.APPLICATION_JSON)
-	public String availability(String inputJson) throws JSONException{
-
-		JSONObject indata = new JSONObject(inputJson);
-		int input = indata.getInt("resourceQuantity");
-
-		JSONObject obj = new JSONObject();
-		if(availableDevices==0){
-		}
-		else if(input > availableDevices){
-			input = input - availableDevices;
-			availableDevices = availableDevices - input;
-			obj.put("available", input);
-		}
-		else{
-			availableDevices = availableDevices - input;
-			obj.put("available", input);
-		}
-
-		String jsonText = obj.toString();
-		return jsonText;
-	}
-
+	
 	@POST
 	@Path("assign")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -133,15 +114,20 @@ public class MyResource {
 		JSONObject indata = new JSONObject(inputJson);
 		int version = Integer.parseInt(indata.getString("resourceVersion"));
 		int memory = Integer.parseInt(indata.getString("resourceMemory"));
-		JSONObject deviceInfo = new JSONObject();
+		int quant = indata.getInt("resourceQuantity");
+		String requestId = indata.getString("resourceVersion");
+		String deviceType = indata.getString("resourceType");
+	//	MongoClient mongo = new MongoClient("localhost",27017);
+		
 		JSONArray devices = new JSONArray();
+		for(int i=0;i<quant;i++){
 		try {
 			System.out.println("start emulator version "+ version + " memory "+ memory);
 		//	EmulatorInformation e = AndroidEmulatorManager.createAvd(version, memory);
-			String e = AndroidEmulatorManager.createAvd(version, memory);
+			String e = AndroidEmulatorManager.createAvd(version, memory,requestId,deviceType);
 		//	String devId = AndroidEmulatorManager.createAvd(version, memory);
 		//	System.out.println("avd created");
-			
+			JSONObject deviceInfo = new JSONObject();
 			//return new CreateAvdActionResult(e);
 			deviceInfo.put("deviceId", e);
 			deviceInfo.put("deviceVersion", version);
@@ -163,6 +149,7 @@ public class MyResource {
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 		//	return new CreateAvdActionResult(e);
+		}
 		}
 		String jsonText = devices.toString();
 		return jsonText;
@@ -205,20 +192,51 @@ public class MyResource {
 		return status;
 	}
 	
-	//
-	//    @GET
-	//    @Path("stopemulator/{id}")
-	//    public Response stopEmulator(@PathParam("id") String id) {
-	//
-	//        try {
-	//            AndroidEmulatorManager.closeEmulator(id);
-	//            return Response.ok().build();
-	//        } catch (Exception e) {
-	//            return Response.serverError().build();
-	//        }
-	//    }
-	//
-	//
+	
+	
+	@POST
+	@Path("getInstalledApp")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String getInstalledApp(String info) throws JSONException{
+		JSONObject emulatorname = new JSONObject(info);
+		String emulatorId = emulatorname.getString("deviceid");
+		System.out.println("emulator id"+emulatorId );
+		String status =null;
+		try {
+		//	EmulatorInformation e = AndroidEmulatorManager.createAvd(version, memory);
+			
+			System.out.println("avd created");
+			AndroidEmulatorManager.getAppInfo(emulatorId);
+			status = "launched";
+		//	return new CreateAvdActionResult(e);
+		} catch (Exception e) {
+			System.out.println(e.getMessage());
+			status = "error launching";
+		}
+		return status;
+	}
+	
+	
+	
+	
+	    @GET
+	    @Path("stopemulator/{id}")
+	    public String stopEmulator(@PathParam("id") String id) {
+	    	
+	    	String result = null;
+	        try {
+	        	System.out.println("stop emu func");
+	            AndroidEmulatorManager.closeEmulator(id);
+	            result = "stopped";
+	            return result;
+	        } catch (Exception e) {
+	        	result="error stopping";
+	            return result;
+	        }
+	    }
+	
+	
 	//    @POST
 	//    @Path("launchurl/{id}")
 	//    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -232,40 +250,41 @@ public class MyResource {
 	//        }
 	//    }
 	//
-	// //   @POST
-	////    @Path("install/{id}")
-	////    @Consumes(MediaType.MULTIPART_FORM_DATA)
-	////    public Response uploadFile(
-	////            @PathParam("id") String id,
-	////            @FormParam("apkfile") InputStream uploadedInputStream,
-	////            @FormParam("apkfile") FormDataContentDisposition fileDetail) {
-	////        try {
-	////            AndroidEmulatorManager.getEmulator(id).installApplication(uploadedInputStream);
-	////            return Response.ok().build();
-	////        } catch (Exception e) {
-	////            return Response.serverError().build();
-	////        }
-	////    }
-	//
-	//
-	//    @POST
-	//    @Path("launch/{id}")
-	//    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-	//    public Response launchApplication(@PathParam("id") String id, @FormParam("appname") String appname) {
-	//        try {
-	//            AndroidEmulatorManager.getEmulator(id).launchApplication(appname);
-	//            return Response.ok().build();
-	//        } catch (Exception e) {
-	//            return Response.serverError().build();
-	//        }
-	//    }
-	//
-	//    @GET
-	//    @Path("getscreenshot/{id}")
-	//    @Produces("image/png")
-	//    public Response getScreenShot(@PathParam("id") String id) throws Exception {
-	//        return Response.ok(AndroidEmulatorManager.getEmulator(id).getScreenShot()).build();
-	//    }
+	    @POST
+	    @Path("install/{id}")
+	    @Consumes(MediaType.MULTIPART_FORM_DATA)
+	    public Response uploadFile(
+	            @PathParam("id") String id,
+	            @FormDataParam("apkfile") InputStream uploadedInputStream,
+	            @FormParam("apkfile") FormDataContentDisposition fileDetail) {
+	        try {
+	            AndroidEmulatorManager.getEmulator(id).installApplication(uploadedInputStream);
+	            return Response.ok().build();
+	         
+	        } catch (Exception e) {
+	            return Response.serverError().build();
+	        }
+	    }
+	
+	
+	    @POST
+	    @Path("launch/{id}")
+	    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+	    public Response launchApplication(@PathParam("id") String id, @FormParam("appname") String appname) {
+	        try {
+	            AndroidEmulatorManager.getEmulator(id).launchApplication(appname);
+	            return Response.ok().build();
+	        } catch (Exception e) {
+	            return Response.serverError().build();
+	        }
+	    }
+	
+	    @GET
+	    @Path("getscreenshot/{id}")
+	    @Produces("image/png")
+	    public Response getScreenShot(@PathParam("id") String id) throws Exception {
+	        return Response.ok(AndroidEmulatorManager.getEmulator(id).getScreenShot()).build();
+	    }
 
 
 }
