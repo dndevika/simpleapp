@@ -1,6 +1,7 @@
 package controller;
 
 import android.content.Context;
+
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -29,6 +30,7 @@ import com.mongodb.util.JSON;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.*;
 
@@ -167,12 +169,30 @@ public class AndroidEmulatorManager {
 
 	public static InternalEmulatorInformation getEmulator(String id)
 			throws Exception {
-		if (emulators.containsKey(id)) {
-			System.out.println("emulator id " +emulators.get(id) );
-			return emulators.get(id);
-		} else {
-			throw new Exception("Invalid emulator id");
+		InternalEmulatorInformation obj=null;
+		Gson gson = new GsonBuilder().create();
+		Gson g1 = new Gson();
+		BasicDBObject searchQuery = new BasicDBObject();
+		//BasicDBObject myDb = table.ge
+		searchQuery.put("deviceId",id);
+		DBCursor cursor = table.find(searchQuery);
+
+		try {
+
+			while(cursor.hasNext()) {
+				System.out.println("device present");
+				System.out.println(cursor.count());
+				//JSONObject json = new JSONObject(cursor.next().get("deviceInfo"));
+				String json = (String) cursor.next().get("deviceInfo");
+				obj = gson.fromJson(json, InternalEmulatorInformation.class);
+				System.out.println(json);
+				
+			}
+		} finally {
+			cursor.close();
 		}
+		return obj;
+	
 	}
 
 	private synchronized static void deleteAllAvd() {
@@ -189,33 +209,16 @@ public class AndroidEmulatorManager {
 		}
 	}
 
-	public static void closeEmulator(String id) {
-	//	InternalEmulatorInformation info = emulators.get(id);
+	public static void closeEmulator(String id) throws Exception {
+		InternalEmulatorInformation info = getEmulator(id);
 		
-		InternalEmulatorInformation info=null;
-		String status = null;
-		Gson gson = new GsonBuilder().create();
-		BasicDBObject searchQuery = new BasicDBObject();
-		//BasicDBObject myDb = table.ge
-		searchQuery.put("deviceId",id);
-		DBCursor cursor = table.find(searchQuery);
 
-		try {
-
-			while(cursor.hasNext()) {
-				System.out.println("device present");
-				System.out.println(cursor.count());
-				String json = (String) cursor.next().get("deviceInfo");
-				info = gson.fromJson(json, InternalEmulatorInformation.class);
-				System.out.println(json);
-			}
-		} finally {
-			cursor.close();
-		}
 		if (info != null) {
 			try {
 				boolean devStat = true;
 				info.stopEmulator(devStat);
+				BasicDBObject searchQuery = new BasicDBObject();
+				searchQuery.put("deviceId",id);
 				BasicDBObject newDocument = new BasicDBObject();
 				newDocument.append("$set", new BasicDBObject().append("status", "false"));
 			 
@@ -239,16 +242,6 @@ public class AndroidEmulatorManager {
 	public synchronized static String createAvd(int version,
 			int memory,String reqId,String devType) throws Exception {
 
-
-//		if (count >= MAX_COUNT) {
-//			System.out.println("Too many emulators: "+count);
-//			throw new EmulatorNodeException.InsufficientResourcesException();
-//		}
-		//		long[] memInfo = getMemoryInfo();
-		//		
-		//		if (memInfo[1] < memory * 1024) {
-		//			throw new EmulatorNodeException.InsufficientResourcesException();
-		//		}
 		String avdName = Integer.toString(random.nextInt(99999));
 		
 		AndroidVersion andVersion = null;
@@ -268,16 +261,7 @@ public class AndroidEmulatorManager {
 				id, avdName, getNextPort(), version, memory);
 		Gson gs = new Gson();
 		String json = gs.toJson(information);
-		//		try {
-		//			System.out.println("starting emulator");
-		//			information.startEmulator();
-		//		} catch (Exception ex) {
-		//			synchronized (lockObject) {
-		//				usedPorts.remove(information.getPort());
-		//			}
-		//			throw ex;
-		//		}
-
+		
 		count++;
 		BasicDBObject document = new BasicDBObject();
 		document.put("deviceId",id);
@@ -292,44 +276,16 @@ public class AndroidEmulatorManager {
 	}
 
 	public synchronized static void startEmulatorWithId(String emulatorId) throws Exception {
-		//InternalEmulatorInformation Emulatorinfo = getEmulator(emulatorId);
-		InternalEmulatorInformation obj=null;
-		Gson gson = new GsonBuilder().create();
-		Gson g1 = new Gson();
-		BasicDBObject searchQuery = new BasicDBObject();
-		//BasicDBObject myDb = table.ge
-		searchQuery.put("deviceId",emulatorId);
-		DBCursor cursor = table.find(searchQuery);
+		InternalEmulatorInformation Emulatorinfo = getEmulator(emulatorId);
 
-		try {
-
-			while(cursor.hasNext()) {
-				System.out.println("device present");
-				System.out.println(cursor.count());
-				//JSONObject json = new JSONObject(cursor.next().get("deviceInfo"));
-				String json = (String) cursor.next().get("deviceInfo");
-				obj = gson.fromJson(json, InternalEmulatorInformation.class);
-				System.out.println(json);
-				//  JSON jsn = new JSON();
-				// jsn = getJSON
-				// devInfo = cursor.next().get("deviceInfo");
-
-				//  String js = searchQuery.get("deviceInfo");
-				//  obj = gson.fromJson(json.toString(),InternalEmulatorInformation.class);
-				//   InternalEmulatorInformation obj = new ObjectMapper().readValue(json, InternalEmulatorInformation.class);
-			}
-		} finally {
-			cursor.close();
-		}
-
-		//		InternalEmulatorInformation obj = gson.fromJson(br, InternalEmulatorInformation.class);
 		try {
 			System.out.println("starting emulator");
 			//	Emulatorinfo.startEmulator();
-			obj.startEmulator();
+			Emulatorinfo.startEmulator();
 			// update db with status "running"
 			
-
+			BasicDBObject searchQuery = new BasicDBObject();
+			searchQuery.put("deviceId",emulatorId);
 			BasicDBObject newDocument = new BasicDBObject();
 			newDocument.append("$set", new BasicDBObject().append("status", "true"));
 		 
@@ -402,35 +358,15 @@ public class AndroidEmulatorManager {
 		return name;
 	}
 
-	public static void getAppInfo(String emulatorId) {
+	public static void getAppInfo(String emulatorId, String appName) throws Exception {
 		
 		
-		InternalEmulatorInformation obj=null;
-		Gson gson = new GsonBuilder().create();
-		Gson g1 = new Gson();
-		BasicDBObject searchQuery = new BasicDBObject();
-		//BasicDBObject myDb = table.ge
-		searchQuery.put("deviceId",emulatorId);
-		DBCursor cursor = table.find(searchQuery);
-
-		try {
-
-			while(cursor.hasNext()) {
-				System.out.println("device present");
-				System.out.println(cursor.count());
-				//JSONObject json = new JSONObject(cursor.next().get("deviceInfo"));
-				String json = (String) cursor.next().get("deviceInfo");
-				obj = gson.fromJson(json, InternalEmulatorInformation.class);
-				System.out.println(json);
-			}
-		} finally {
-			cursor.close();
-		}
+		InternalEmulatorInformation Emulatorinfo = getEmulator(emulatorId);
 
 		try {
 			System.out.println("starting emulator");
 			//	Emulatorinfo.startEmulator();
-			obj.retreiveAppInfo();
+			Emulatorinfo.retreiveAppInfo(appName);
 			
 		} catch (Exception ex) {
 			synchronized (lockObject) {
@@ -440,4 +376,35 @@ public class AndroidEmulatorManager {
 		}
 
 	}
+	
+	public static void installAppforDevice(String id,String appname,InputStream in) throws Exception {
+		InternalEmulatorInformation info = getEmulator(id);
+		String result = null;
+		if (info != null) {
+			try {
+				String path = info.installApplication(in, appname);
+				
+				boolean devStat = true;
+				BasicDBObject searchQuery = new BasicDBObject();
+				searchQuery.put("deviceId",id);
+				Gson gs = new Gson();
+				String json = gs.toJson(info);
+				BasicDBObject newDocument = new BasicDBObject();
+				newDocument.append("$set", new BasicDBObject().append("deviceinfo", json));
+			 
+			//	BasicDBObject updateQuery = new BasicDBObject().append("hosting", "hostB");
+			 
+				table.update(searchQuery, newDocument);
+				
+			} catch (Exception ex) {
+
+			}
+			synchronized (lockObject) {
+				count--;
+				emulators.remove(id);
+				usedPorts.remove(info.getPort());
+			}
+		}
+	}
+	
 }
